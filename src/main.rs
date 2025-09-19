@@ -27,42 +27,41 @@ unsafe extern "C" {
 
 // echo "ping" | nc -u 127.0.0.1 8080
 fn main() {
-    unsafe {
 
-        let addr = SockAddr {
-            sin_len: size_of::<SockAddr>() as c_uchar,
-            sin_family: AF_INET as c_uchar,
-            sin_port: SERVER_PORT.to_be(),
-            sin_addr: Addr { s_addr: INADDR_LOOPBACK.to_be(), },
-            sin_zero: [0; 8],
-        };
+    let addr = SockAddr {
+        sin_len: size_of::<SockAddr>() as c_uchar,
+        sin_family: AF_INET as c_uchar,
+        sin_port: SERVER_PORT.to_be(),
+        sin_addr: Addr { s_addr: INADDR_LOOPBACK.to_be(), },
+        sin_zero: [0; 8],
+    };
 
-        let sock = socket(AF_INET, SOCK_DGRAM, 0);
-        let addrlen = size_of::<SockAddr>() as u32;
-        if bind(sock, &addr as *const _ as *const c_void, addrlen) != 0 {
-            eprintln!("bind() failed");
-            let _ = close(sock);
-            return;
+    let sock = unsafe { socket(AF_INET, SOCK_DGRAM, 0) };
+    let addrlen = size_of::<SockAddr>() as u32;
+    if unsafe { bind(sock, &addr as *const _ as *const c_void, addrlen) } != 0 {
+        eprintln!("bind() failed");
+        let _ = unsafe { close(sock) };
+        return;
+    }
+    println!("UDP server binded port {}", SERVER_PORT);
+
+    let mut buf = [0u8; 1500];
+    loop {
+        let mut src = SockAddr { sin_len: 0, sin_family: 0, sin_port: 0, sin_addr: Addr { s_addr: 0 }, sin_zero: [0; 8], };
+        let mut src_len: u32 = addrlen;
+        let n = unsafe { recvfrom(sock, buf.as_mut_ptr() as *mut c_void, buf.len(), 0, &mut src as *mut _ as *mut c_void, &mut src_len as *mut u32) };
+        if n <= 0 {
+            continue;
         }
-        println!("UDP server binded port {}", SERVER_PORT);
 
-        let mut buf = [0u8; 1500];
-        loop {
-            let mut src = SockAddr { sin_len: 0, sin_family: 0, sin_port: 0, sin_addr: Addr { s_addr: 0 }, sin_zero: [0; 8], };
-            let mut src_len: u32 = addrlen;
-            let n = recvfrom(sock, buf.as_mut_ptr() as *mut c_void, buf.len(), 0, &mut src as *mut _ as *mut c_void, &mut src_len as *mut u32);
-            if n <= 0 {
-                continue;
-            }
+        let [o0, o1, o2, o3] = u32::from_be(src.sin_addr.s_addr).to_be_bytes();
+        println!("recv {} bytes from {}.{}.{}.{}:{}", n, o0, o1, o2, o3, u16::from_be(src.sin_port));
 
-            let [o0, o1, o2, o3] = u32::from_be(src.sin_addr.s_addr).to_be_bytes();
-            println!("recv {} bytes from {}.{}.{}.{}:{}", n, o0, o1, o2, o3, u16::from_be(src.sin_port));
-
-            let reply = b"Hello from raw UDP server (macOS)\n";
-            let sent = sendto(sock, reply.as_ptr() as *const c_void, reply.len(), 0, &src as *const _ as *const c_void, src_len);
-            if sent < 0 {
-                eprintln!("sendto failed");
-            }
+        let reply = b"Hello from raw UDP server (macOS)\n";
+        let sent = unsafe { sendto(sock, reply.as_ptr() as *const c_void, reply.len(), 0, &src as *const _ as *const c_void, src_len) };
+        if sent < 0 {
+            eprintln!("sendto failed");
         }
     }
+
 }
