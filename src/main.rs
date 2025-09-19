@@ -10,12 +10,7 @@ const INADDR_LOOPBACK: u32 = 0x7f000001; // 127.0.0.1
 const SERVER_PORT: u16 = 8080;
 
 #[repr(C)]
-#[derive(Copy, Clone)]
-struct Addr { s_addr: c_uint }
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-struct SockAddr { sin_len: c_uchar, sin_family: c_uchar, sin_port: c_ushort, sin_addr: Addr, sin_zero: [u8; 8], }
+struct SockAddr { sin_len: c_uchar, sin_family: c_uchar, sin_port: c_ushort, sin_addr: c_uint, sin_zero: [u8; 8], }
 
 unsafe extern "C" {
     fn socket(domain: c_int, typ: c_int, protocol: c_int) -> c_int;
@@ -32,7 +27,7 @@ fn main() {
         sin_len: size_of::<SockAddr>() as c_uchar,
         sin_family: AF_INET as c_uchar,
         sin_port: SERVER_PORT.to_be(),
-        sin_addr: Addr { s_addr: INADDR_LOOPBACK.to_be(), },
+        sin_addr: INADDR_LOOPBACK.to_be(),
         sin_zero: [0; 8],
     };
 
@@ -47,14 +42,14 @@ fn main() {
 
     let mut buf = [0u8; 1500];
     loop {
-        let mut src = SockAddr { sin_len: 0, sin_family: 0, sin_port: 0, sin_addr: Addr { s_addr: 0 }, sin_zero: [0; 8], };
+        let mut src = SockAddr { sin_len: 0, sin_family: 0, sin_port: 0, sin_addr: 0, sin_zero: [0; 8], };
         let mut src_len: u32 = addrlen;
         let n = unsafe { recvfrom(sock, buf.as_mut_ptr() as *mut c_void, buf.len(), 0, &mut src as *mut _ as *mut c_void, &mut src_len as *mut u32) };
         if n <= 0 {
             continue;
         }
 
-        let [o0, o1, o2, o3] = u32::from_be(src.sin_addr.s_addr).to_be_bytes();
+        let [o0, o1, o2, o3] = u32::from_be(src.sin_addr).to_be_bytes();
         println!("recv {} bytes from {}.{}.{}.{}:{}", n, o0, o1, o2, o3, u16::from_be(src.sin_port));
 
         let reply = b"Hello from raw UDP server (macOS)\n";
